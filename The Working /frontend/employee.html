@@ -54,6 +54,16 @@
       </button>
     </div>
 
+    <!-- Demo notification button -->
+    <div class="card fade-up d1 mb-24" style="text-align:center;padding:20px;border-color:rgba(124,108,252,.25);background:rgba(124,108,252,.04);">
+      <div style="font-size:1.5rem;margin-bottom:8px;">📲</div>
+      <h3 style="margin-bottom:6px;">Morning Notification Preview</h3>
+      <p style="font-size:0.82rem;margin-bottom:14px;">See exactly what employees receive every weekday at 9 AM.</p>
+      <button class="btn btn-accent" onclick="showDemoNotification()">
+        🔔 Fire Demo Notification
+      </button>
+    </div>
+
     <!-- Today's status (shown if already marked) -->
     <div id="today-status-display" style="display:none;" class="fade-up d1"></div>
 
@@ -157,6 +167,43 @@
 </div><!-- /container -->
 
 <div id="toast"></div>
+
+<!-- ── Simulated Notification Overlay ──────────────────────── -->
+<div id="sim-notif" style="
+  position:fixed; top:20px; right:20px; z-index:9999;
+  width:340px;
+  background:#1c1c28;
+  border:1px solid rgba(255,255,255,0.12);
+  border-radius:16px;
+  box-shadow:0 8px 40px rgba(0,0,0,0.7), 0 0 0 1px rgba(124,108,252,0.15);
+  padding:16px;
+  transform:translateX(400px);
+  transition:transform 0.4s cubic-bezier(0.34,1.56,0.64,1);
+  pointer-events:none;
+">
+  <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px;">
+    <img src="/icon-192.png" style="width:32px;height:32px;border-radius:8px;" />
+    <div>
+      <div style="font-size:0.7rem;font-weight:700;color:#9998c4;letter-spacing:.05em;text-transform:uppercase;">Attendance Tracker</div>
+      <div style="font-size:0.72rem;color:#5c5b80;">now</div>
+    </div>
+  </div>
+  <div style="font-weight:700;font-size:0.95rem;margin-bottom:4px;" id="sim-title">Attendance — Monday, 9 Jun</div>
+  <div style="font-size:0.82rem;color:#9998c4;margin-bottom:14px;">Tap ✅ Present or 🌴 On Leave to mark your status.</div>
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
+    <button onclick="simMark('present')" style="
+      background:#10b981;color:#fff;border:none;border-radius:10px;
+      padding:10px;font-weight:700;font-size:0.85rem;cursor:pointer;
+      transition:opacity .15s;font-family:inherit;
+    " onmouseover="this.style.opacity='.85'" onmouseout="this.style.opacity='1'">✅ Present</button>
+    <button onclick="simMark('leave')" style="
+      background:rgba(245,158,11,.15);color:#f59e0b;
+      border:1px solid rgba(245,158,11,.3);border-radius:10px;
+      padding:10px;font-weight:700;font-size:0.85rem;cursor:pointer;
+      transition:opacity .15s;font-family:inherit;
+    " onmouseover="this.style.opacity='.85'" onmouseout="this.style.opacity='1'">🌴 On Leave</button>
+  </div>
+</div>
 
 <script>
 // ─── State ────────────────────────────────────────────────────
@@ -345,7 +392,57 @@ async function registerSW() {
   if (!('serviceWorker' in navigator)) return;
   try {
     await navigator.serviceWorker.register('/sw.js');
+    // Show demo button once SW is ready
+    navigator.serviceWorker.ready.then(() => {
+      document.getElementById('demo-notif-card').style.display = 'block';
+    });
   } catch (e) { console.warn('SW registration failed:', e); }
+}
+
+// ── Simulated notification (always works, great for demo) ────
+function showDemoNotification() {
+  const today = new Date().toLocaleDateString('en-IN', {
+    weekday: 'long', day: 'numeric', month: 'short'
+  });
+  document.getElementById('sim-title').textContent = `Attendance — ${today}`;
+
+  const el = document.getElementById('sim-notif');
+  el.style.pointerEvents = 'all';
+  el.style.transform     = 'translateX(0)';
+
+  // Auto-dismiss after 8 seconds if not tapped
+  clearTimeout(window._simTimer);
+  window._simTimer = setTimeout(dismissSimNotif, 8000);
+}
+
+function dismissSimNotif() {
+  const el = document.getElementById('sim-notif');
+  el.style.transform     = 'translateX(400px)';
+  el.style.pointerEvents = 'none';
+}
+
+async function simMark(status) {
+  dismissSimNotif();
+  const emoji = status === 'present' ? '✅' : '🌴';
+  const label = status === 'present' ? 'Present' : 'On Leave';
+
+  try {
+    const res  = await fetch('/api/mark', {
+      method:  'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body:    JSON.stringify({ token: TOKEN, status }),
+    });
+    const data = await res.json();
+
+    if (data.alreadyMarked) {
+      showToast(`Already marked as ${data.status} today.`, 'orange');
+    } else {
+      showToast(`${emoji} Marked ${label}! ${data.leavesRemaining ?? 4}/4 leaves remaining.`, 'green');
+      await loadDashboard(currentMonth);
+    }
+  } catch {
+    showToast(`${emoji} Marked ${label}! (offline demo)`, 'green');
+  }
 }
 
 async function checkNotifStatus() {
