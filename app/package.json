@@ -3,6 +3,9 @@
   "version": "1.0.0",
   "description": "Frictionless attendance tracking with push notifications and admin dashboard",
   "main": "server.js",
+  "engines": {
+    "node": "20.14.0"
+  },
   "scripts": {
     "setup": "node setup.js",
     "start": "node server.js",
