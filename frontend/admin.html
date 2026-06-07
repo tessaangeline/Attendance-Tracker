@@ -1,0 +1,462 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Admin Dashboard — Attendance Tracker</title>
+  <meta name="description" content="Full team attendance overview for administrators." />
+  <link rel="stylesheet" href="/style.css" />
+  <meta name="theme-color" content="#7c6cfc" />
+</head>
+<body>
+<div class="bg-glow"></div>
+
+<!-- ── Auth Screen ────────────────────────────────────────────── -->
+<div class="auth-wrapper" id="auth-view">
+  <div class="auth-card">
+    <div class="auth-icon">🔐</div>
+    <h1>Admin Access</h1>
+    <p>Enter your admin secret to access the team dashboard.</p>
+    <div class="form-group" style="text-align:left;">
+      <label for="admin-secret">Admin Secret</label>
+      <input type="password" id="admin-secret" placeholder="Paste your secret here…" />
+    </div>
+    <button class="btn btn-accent btn-full btn-lg" onclick="verifyAdmin()" id="auth-btn">
+      Open Dashboard →
+    </button>
+    <p style="margin-top:16px;font-size:0.75rem;color:var(--text-3);">Found in your <code style="color:var(--accent);">.env</code> file as <code style="color:var(--accent);">ADMIN_SECRET</code></p>
+  </div>
+</div>
+
+<!-- ── Main Admin Dashboard ───────────────────────────────────── -->
+<div style="display:none;" id="admin-view">
+<div class="container wide">
+
+  <!-- Topbar -->
+  <div class="topbar fade-up">
+    <div class="logo">📊</div>
+    <div class="topbar-text">
+      <h1>Team Dashboard</h1>
+      <p id="admin-subtitle">Loading…</p>
+    </div>
+    <div style="margin-left:auto;display:flex;gap:10px;flex-wrap:wrap;">
+      <button class="btn btn-ghost btn-sm" onclick="sendNotificationNow()" id="notify-btn">
+        🔔 Notify All
+      </button>
+      <button class="btn btn-ghost btn-sm" onclick="exportCSV()">
+        ⬇️ Export CSV
+      </button>
+    </div>
+  </div>
+
+  <!-- Month selector + summary stats -->
+  <div class="flex-between mb-16 fade-up d1" style="flex-wrap:wrap;gap:12px;">
+    <input type="month" id="month-select" onchange="loadReport(this.value)"
+           style="max-width:200px;" />
+    <div style="display:flex;gap:8px;flex-wrap:wrap;">
+      <span class="badge accent" id="badge-total">– employees</span>
+      <span class="badge green"  id="badge-subscribed">– notif. enabled</span>
+    </div>
+  </div>
+
+  <!-- Overview stat cards -->
+  <div class="stats-row fade-up d1" style="grid-template-columns:repeat(4,1fr);margin-bottom:24px;" id="overview-stats">
+    <div class="stat-card green">
+      <div class="stat-value" id="ov-present">–</div>
+      <div class="stat-label">Avg Present</div>
+    </div>
+    <div class="stat-card orange">
+      <div class="stat-value" id="ov-leave">–</div>
+      <div class="stat-label">Avg Leave</div>
+    </div>
+    <div class="stat-card accent">
+      <div class="stat-value" id="ov-full">–</div>
+      <div class="stat-label">Full Attendance</div>
+    </div>
+    <div class="stat-card" style="border-color:var(--red-dim);">
+      <div class="stat-value" style="color:var(--red);" id="ov-overlimit">–</div>
+      <div class="stat-label">Over Limit</div>
+    </div>
+  </div>
+
+  <!-- Team table -->
+  <div class="card fade-up d2" style="padding:0;overflow:hidden;margin-bottom:24px;">
+    <div style="padding:20px 24px 16px;" class="flex-between">
+      <h2>👥 Team Attendance</h2>
+      <span class="label" id="table-month-label"></span>
+    </div>
+    <div class="table-wrap" style="border:none;border-radius:0;">
+      <table id="team-table">
+        <thead>
+          <tr>
+            <th>Employee</th>
+            <th>Today</th>
+            <th>Present Days</th>
+            <th>Leave Taken</th>
+            <th>Leaves Left</th>
+            <th>Status</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody id="team-tbody">
+          <tr><td colspan="7" style="text-align:center;padding:32px;color:var(--text-3);">Loading…</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- Add employee + Manage employees -->
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-bottom:24px;" class="fade-up d3">
+
+    <!-- Add employee -->
+    <div class="card">
+      <h2 style="margin-bottom:16px;">➕ Add Employee</h2>
+      <div class="form-group">
+        <label for="new-emp-name">Full Name</label>
+        <input type="text" id="new-emp-name" placeholder="e.g. Anjali Nair" />
+      </div>
+      <button class="btn btn-accent btn-full" onclick="addEmployee()">Add & Get Link</button>
+
+      <!-- Result -->
+      <div id="new-emp-result" style="display:none;margin-top:14px;">
+        <p style="font-size:0.78rem;color:var(--green);margin-bottom:8px;">✅ Employee added! Share this link:</p>
+        <div class="copy-box">
+          <code id="new-emp-link"></code>
+          <button class="copy-btn" onclick="copyText('new-emp-link')">📋</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Employee list & management -->
+    <div class="card">
+      <div class="section-heading">
+        <h2>🗂️ All Employees</h2>
+        <button class="btn btn-ghost btn-sm" onclick="loadEmployeeList()">↻</button>
+      </div>
+      <div id="emp-list" style="max-height:240px;overflow-y:auto;">
+        <p style="color:var(--text-3);font-size:0.85rem;">Loading…</p>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- Monthly calendar grid per employee (expandable) -->
+  <div class="card fade-up d4" id="detail-panel" style="display:none;">
+    <div class="flex-between mb-16">
+      <h2 id="detail-name">Employee Detail</h2>
+      <button class="btn btn-ghost btn-sm" onclick="closeDetail()">✕ Close</button>
+    </div>
+    <div class="cal-header">
+      <div class="day-label">Sun</div>
+      <div class="day-label">Mon</div>
+      <div class="day-label">Tue</div>
+      <div class="day-label">Wed</div>
+      <div class="day-label">Thu</div>
+      <div class="day-label">Fri</div>
+      <div class="day-label">Sat</div>
+    </div>
+    <div class="calendar-grid" id="detail-cal"></div>
+  </div>
+
+</div><!-- /container -->
+</div><!-- /admin-view -->
+
+<div id="toast"></div>
+
+<script>
+// ─── State ────────────────────────────────────────────────────
+let ADMIN_TOKEN = '';
+let reportData  = null;
+let currentMonth = todayMonth();
+
+// ─── Auth ─────────────────────────────────────────────────────
+async function verifyAdmin() {
+  const secret = document.getElementById('admin-secret').value.trim();
+  if (!secret) { showToast('Please enter the admin secret.', 'orange'); return; }
+
+  const btn = document.getElementById('auth-btn');
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner"></span> Verifying…';
+
+  try {
+    const res = await fetch('/api/admin/verify', {
+      method:  'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body:    JSON.stringify({ adminToken: secret }),
+    });
+    if (!res.ok) throw new Error('Wrong secret');
+
+    ADMIN_TOKEN = secret;
+    localStorage.setItem('adminToken', secret);
+    document.getElementById('auth-view').style.display  = 'none';
+    document.getElementById('admin-view').style.display = 'block';
+    initDashboard();
+  } catch {
+    showToast('❌ Wrong admin secret. Try again.', 'red');
+    btn.disabled = false;
+    btn.innerHTML = 'Open Dashboard →';
+  }
+}
+
+// Check if already logged in
+window.addEventListener('DOMContentLoaded', () => {
+  const saved = localStorage.getItem('adminToken');
+  if (saved) {
+    ADMIN_TOKEN = saved;
+    document.getElementById('admin-secret').value = saved;
+    verifyAdmin();
+  }
+  document.getElementById('admin-secret').addEventListener('keydown', e => {
+    if (e.key === 'Enter') verifyAdmin();
+  });
+});
+
+// ─── Dashboard init ───────────────────────────────────────────
+async function initDashboard() {
+  document.getElementById('month-select').value = currentMonth;
+  await Promise.all([loadReport(currentMonth), loadEmployeeList()]);
+}
+
+// ─── Load team report ─────────────────────────────────────────
+async function loadReport(month = currentMonth) {
+  currentMonth = month;
+  document.getElementById('month-select').value = month;
+
+  try {
+    const res  = await fetch(`/api/report?adminToken=${ADMIN_TOKEN}&month=${month}`);
+    if (res.status === 403) { localStorage.removeItem('adminToken'); location.reload(); return; }
+    reportData = await res.json();
+    renderReport(reportData);
+  } catch {
+    showToast('Failed to load report.', 'red');
+  }
+}
+
+function renderReport(data) {
+  const { employees, month } = data;
+
+  document.getElementById('admin-subtitle').textContent =
+    `${employees.length} employees · ${formatMonthLabel(month)}`;
+  document.getElementById('table-month-label').textContent = formatMonthLabel(month);
+
+  // Overview stats
+  const avgPresent   = avg(employees.map(e => e.presentDays));
+  const avgLeave     = avg(employees.map(e => e.leaveDays));
+  const fullCount    = employees.filter(e => e.leaveDays === 0).length;
+  const overCount    = employees.filter(e => e.leavesOverLimit > 0).length;
+
+  document.getElementById('ov-present').textContent   = avgPresent.toFixed(1);
+  document.getElementById('ov-leave').textContent     = avgLeave.toFixed(1);
+  document.getElementById('ov-full').textContent      = fullCount;
+  document.getElementById('ov-overlimit').textContent = overCount;
+  document.getElementById('badge-total').textContent  = `${employees.length} employees`;
+
+  // Team table
+  const tbody = document.getElementById('team-tbody');
+  if (!employees.length) {
+    tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;padding:32px;color:var(--text-3);">No employees registered yet.</td></tr>';
+    return;
+  }
+
+  tbody.innerHTML = employees.map(emp => {
+    const todayBadge = emp.todayStatus
+      ? `<span class="badge ${emp.todayStatus === 'present' ? 'green' : 'orange'}">${emp.todayStatus === 'present' ? '✅ Present' : '🌴 Leave'}</span>`
+      : `<span class="badge gray">–</span>`;
+
+    const remClass = emp.leavesRemaining >= 3 ? 'green' : emp.leavesRemaining >= 1 ? 'orange' : 'red';
+
+    const statusBadge = emp.leavesOverLimit > 0
+      ? `<span class="badge red">⚠️ ${emp.leavesOverLimit} over</span>`
+      : emp.leavesRemaining === 0
+        ? `<span class="badge orange">No leaves left</span>`
+        : `<span class="badge green">OK</span>`;
+
+    return `
+      <tr>
+        <td class="emp-name">${emp.name}</td>
+        <td>${todayBadge}</td>
+        <td><strong style="color:var(--green);">${emp.presentDays}</strong></td>
+        <td><strong style="color:var(--orange);">${emp.leaveDays}</strong></td>
+        <td><span class="badge ${remClass}">${emp.leavesRemaining}/4</span></td>
+        <td>${statusBadge}</td>
+        <td><button class="btn btn-ghost btn-sm" onclick="showDetail(${emp.id})">📅 View</button></td>
+      </tr>`;
+  }).join('');
+}
+
+// ─── Employee detail calendar ──────────────────────────────────
+function showDetail(empId) {
+  const emp = reportData?.employees.find(e => e.id === empId);
+  if (!emp) return;
+
+  document.getElementById('detail-name').textContent = `📅 ${emp.name} — ${formatMonthLabel(currentMonth)}`;
+  document.getElementById('detail-panel').style.display = 'block';
+  document.getElementById('detail-panel').scrollIntoView({ behavior: 'smooth' });
+
+  const [y, m] = currentMonth.split('-').map(Number);
+  const days   = new Date(y, m, 0).getDate();
+  const first  = new Date(y, m - 1, 1).getDay();
+  const today  = todayStr();
+
+  const recMap = {};
+  emp.records.forEach(r => { recMap[r.date] = r.status; });
+
+  let html = '';
+  for (let i = 0; i < first; i++) html += '<div class="cal-day empty"></div>';
+  for (let d = 1; d <= days; d++) {
+    const dateStr  = `${currentMonth}-${String(d).padStart(2,'0')}`;
+    const dow      = new Date(dateStr + 'T12:00:00').getDay();
+    const isWknd   = dow === 0 || dow === 6;
+    const isTod    = dateStr === today;
+    const isFuture = dateStr > today;
+    const status   = recMap[dateStr];
+
+    let cls = 'cal-day', lbl = d;
+    if (isWknd)                     { cls += ' weekend'; }
+    else if (isFuture)              { cls += ' future'; }
+    else if (status === 'present')  { cls += ' present'; lbl = 'P'; }
+    else if (status === 'leave')    { cls += ' leave';   lbl = 'L'; }
+    else                            { cls += ' unmarked'; }
+    if (isTod) cls += ' today';
+
+    html += `<div class="${cls}">${lbl}</div>`;
+  }
+  document.getElementById('detail-cal').innerHTML = html;
+}
+
+function closeDetail() {
+  document.getElementById('detail-panel').style.display = 'none';
+}
+
+// ─── Employee management ──────────────────────────────────────
+async function loadEmployeeList() {
+  try {
+    const res  = await fetch(`/api/employees?adminToken=${ADMIN_TOKEN}`);
+    const emps = await res.json();
+
+    document.getElementById('badge-subscribed').textContent = `${emps.length} registered`;
+
+    const el = document.getElementById('emp-list');
+    if (!emps.length) {
+      el.innerHTML = '<p style="color:var(--text-3);font-size:0.85rem;">No employees yet.</p>';
+      return;
+    }
+    el.innerHTML = emps.map(e => `
+      <div class="emp-row">
+        <div class="flex-center">
+          <div class="emp-avatar">${initials(e.name)}</div>
+          <div>
+            <div style="font-weight:600;font-size:0.88rem;">${e.name}</div>
+            <div style="font-size:0.72rem;color:var(--text-3);">Added ${shortDate(e.createdAt)}</div>
+          </div>
+        </div>
+        <div style="display:flex;gap:8px;">
+          <button class="btn btn-ghost btn-sm" onclick="copyEmployeeLink('${e.dashboardUrl}')">🔗</button>
+          <button class="btn btn-danger btn-sm" onclick="removeEmployee(${e.id},'${e.name}')">🗑️</button>
+        </div>
+      </div>`).join('');
+  } catch {
+    document.getElementById('emp-list').innerHTML = '<p style="color:var(--red);font-size:0.85rem;">Failed to load.</p>';
+  }
+}
+
+async function addEmployee() {
+  const name = document.getElementById('new-emp-name').value.trim();
+  if (!name) { showToast('Enter a name.', 'orange'); return; }
+
+  try {
+    const res  = await fetch('/api/employees', {
+      method:  'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body:    JSON.stringify({ adminToken: ADMIN_TOKEN, name }),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error);
+
+    const fullUrl = window.location.origin + data.dashboardUrl;
+    document.getElementById('new-emp-link').textContent = fullUrl;
+    document.getElementById('new-emp-result').style.display = 'block';
+    document.getElementById('new-emp-name').value = '';
+    showToast(`✅ ${data.name} added!`, 'green');
+    loadEmployeeList();
+    loadReport(currentMonth);
+  } catch (err) {
+    showToast(err.message, 'red');
+  }
+}
+
+async function removeEmployee(id, name) {
+  if (!confirm(`Remove ${name} and all their attendance data? This cannot be undone.`)) return;
+  try {
+    await fetch(`/api/employees/${id}`, {
+      method:  'DELETE',
+      headers: { 'Content-Type': 'application/json' },
+      body:    JSON.stringify({ adminToken: ADMIN_TOKEN }),
+    });
+    showToast(`${name} removed.`, 'orange');
+    loadEmployeeList();
+    loadReport(currentMonth);
+  } catch {
+    showToast('Failed to remove.', 'red');
+  }
+}
+
+function copyEmployeeLink(url) {
+  navigator.clipboard.writeText(window.location.origin + url)
+    .then(() => showToast('Link copied!', 'green'));
+}
+
+// ─── Actions ──────────────────────────────────────────────────
+async function sendNotificationNow() {
+  const btn = document.getElementById('notify-btn');
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner"></span>';
+
+  try {
+    const res  = await fetch('/api/notify', {
+      method:  'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body:    JSON.stringify({ adminToken: ADMIN_TOKEN }),
+    });
+    const data = await res.json();
+    showToast(`🔔 Sent to ${data.sent} / ${data.total} employees.`, 'green');
+  } catch {
+    showToast('Failed to send notifications.', 'red');
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = '🔔 Notify All';
+  }
+}
+
+function exportCSV() {
+  window.location.href = `/api/export?adminToken=${ADMIN_TOKEN}&month=${currentMonth}`;
+}
+
+// ─── Helpers ──────────────────────────────────────────────────
+function copyText(id) {
+  const t = document.getElementById(id)?.textContent;
+  if (t) navigator.clipboard.writeText(t).then(() => showToast('Copied!', 'green'));
+}
+
+function todayStr()   { return new Date().toISOString().split('T')[0]; }
+function todayMonth() { return todayStr().substring(0, 7); }
+function avg(arr)     { return arr.length ? arr.reduce((a,b) => a+b, 0) / arr.length : 0; }
+function initials(name) { return name.split(' ').map(w=>w[0]).join('').substring(0,2).toUpperCase(); }
+function shortDate(d) {
+  if (!d) return '–';
+  return new Date(d).toLocaleDateString('en-IN', { day:'numeric', month:'short' });
+}
+function formatMonthLabel(ym) {
+  const [y,m] = ym.split('-').map(Number);
+  return new Date(y, m-1, 1).toLocaleDateString('en-IN', { month:'long', year:'numeric' });
+}
+
+function showToast(msg, type = '') {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.className   = `show ${type}`;
+  setTimeout(() => { t.className = ''; }, 4000);
+}
+</script>
+</body>
+</html>

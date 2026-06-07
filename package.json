@@ -1,0 +1,21 @@
+{
+  "name": "attendance-tracker",
+  "version": "1.0.0",
+  "description": "Frictionless attendance tracking with push notifications and admin dashboard",
+  "main": "server.js",
+  "scripts": {
+    "setup": "node setup.js",
+    "start": "node server.js",
+    "dev": "node server.js"
+  },
+  "dependencies": {
+    "better-sqlite3": "^9.4.3",
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.5",
+    "express": "^4.19.2",
+    "googleapis": "^140.0.1",
+    "node-schedule": "^2.1.1",
+    "uuid": "^9.0.1",
+    "web-push": "^3.6.7"
+  }
+}

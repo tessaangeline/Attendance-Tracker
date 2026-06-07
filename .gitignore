@@ -1,0 +1,19 @@
+# Environment secrets — never commit this
+.env
+
+# SQLite database
+attendance.db
+attendance.db-shm
+attendance.db-wal
+
+# Node modules
+node_modules/
+
+# Google credentials file (if used)
+google-credentials.json
+
+# Mac OS
+.DS_Store
+
+# Logs
+*.log

@@ -1,0 +1,449 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>My Attendance</title>
+  <meta name="description" content="Your personal attendance dashboard — mark attendance and check your leave balance." />
+  <link rel="stylesheet" href="/style.css" />
+  <link rel="manifest" href="/manifest.json" />
+  <meta name="theme-color" content="#7c6cfc" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="Attendance" />
+</head>
+<body>
+<div class="bg-glow"></div>
+
+<div class="container" id="app">
+  <!-- Loading state -->
+  <div style="display:grid;place-items:center;min-height:80vh;" id="loading-view">
+    <div style="text-align:center;">
+      <span class="spinner" style="width:32px;height:32px;border-width:3px;color:var(--accent);"></span>
+      <p style="margin-top:12px;font-size:0.85rem;">Loading your dashboard…</p>
+    </div>
+  </div>
+
+  <!-- Error / invalid token state -->
+  <div style="display:none;text-align:center;padding-top:60px;" id="error-view">
+    <div style="font-size:3rem;margin-bottom:16px;">🔗</div>
+    <h2 style="margin-bottom:8px;">Link not found</h2>
+    <p style="margin-bottom:24px;">This link is invalid or has expired. Go back and register again.</p>
+    <a class="btn btn-accent" href="/">Register Here</a>
+  </div>
+
+  <!-- Main dashboard (hidden until loaded) -->
+  <div style="display:none;" id="main-view">
+
+    <!-- Top bar -->
+    <div class="topbar fade-up">
+      <div class="logo">👋</div>
+      <div class="topbar-text">
+        <h1 id="greeting-name">Hi there</h1>
+        <p id="greeting-date"></p>
+      </div>
+    </div>
+
+    <!-- Notification setup prompt (shown if not subscribed) -->
+    <div class="notif-prompt fade-up d1 mb-24" id="notif-prompt" style="display:none;">
+      <div style="font-size:1.8rem;margin-bottom:8px;">🔔</div>
+      <h3>Enable Notifications</h3>
+      <p>Allow notifications so you can mark attendance directly from a morning pop-up — no need to open anything.</p>
+      <button class="btn btn-accent" id="enable-notif-btn" onclick="enableNotifications()">
+        Enable Morning Reminders
+      </button>
+    </div>
+
+    <!-- Today's status (shown if already marked) -->
+    <div id="today-status-display" style="display:none;" class="fade-up d1"></div>
+
+    <!-- Mark today (shown if not yet marked and it's a weekday) -->
+    <div id="mark-section" class="fade-up d1" style="display:none;">
+      <div class="card mb-16" style="text-align:center;padding:28px 24px;">
+        <div style="font-size:1.8rem;margin-bottom:8px;">📋</div>
+        <h2 style="margin-bottom:6px;">Mark Today's Attendance</h2>
+        <p id="mark-date-label" style="margin-bottom:22px;"></p>
+        <div class="mark-buttons">
+          <button class="btn btn-present btn-lg" id="btn-present" onclick="markAttendance('present')">
+            ✅ Present
+          </button>
+          <button class="btn btn-leave btn-lg" id="btn-leave" onclick="markAttendance('leave')">
+            🌴 On Leave
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Leave Balance -->
+    <div class="card balance-hero fade-up d2 mb-16" id="balance-card">
+      <span class="label">Leave Balance — <span id="balance-month-label"></span></span>
+      <div style="margin-top:20px;">
+        <div class="balance-ring" id="balance-ring">
+          <div class="ring-text">
+            <div class="ring-num" id="ring-num">–</div>
+            <div class="ring-deno">of 4</div>
+          </div>
+        </div>
+        <h3 id="balance-label" style="margin-bottom:4px;"></h3>
+        <p id="balance-sublabel" style="font-size:0.8rem;"></p>
+      </div>
+    </div>
+
+    <!-- This month stats -->
+    <div class="stats-row fade-up d2 mb-24">
+      <div class="stat-card green">
+        <div class="stat-value" id="stat-present">–</div>
+        <div class="stat-label">Present</div>
+      </div>
+      <div class="stat-card orange">
+        <div class="stat-value" id="stat-leave">–</div>
+        <div class="stat-label">Leave</div>
+      </div>
+      <div class="stat-card accent">
+        <div class="stat-value" id="stat-remaining">–</div>
+        <div class="stat-label">Remaining</div>
+      </div>
+    </div>
+
+    <!-- Monthly Calendar -->
+    <div class="card fade-up d3">
+      <div class="section-heading mb-16">
+        <h2>📅 <span id="cal-month-label"></span></h2>
+        <div class="flex-center gap-8">
+          <span class="badge green">P = Present</span>
+          <span class="badge orange">L = Leave</span>
+        </div>
+      </div>
+
+      <!-- Day labels -->
+      <div class="cal-header">
+        <div class="day-label">Sun</div>
+        <div class="day-label">Mon</div>
+        <div class="day-label">Tue</div>
+        <div class="day-label">Wed</div>
+        <div class="day-label">Thu</div>
+        <div class="day-label">Fri</div>
+        <div class="day-label">Sat</div>
+      </div>
+
+      <div class="calendar-grid" id="calendar-grid"></div>
+
+      <!-- Legend -->
+      <div style="margin-top:14px;display:flex;gap:12px;flex-wrap:wrap;">
+        <span style="font-size:0.72rem;color:var(--text-3);display:flex;align-items:center;gap:5px;">
+          <span style="display:inline-block;width:10px;height:10px;border-radius:2px;background:var(--green-dim);border:1px solid rgba(16,185,129,.3);"></span> Present
+        </span>
+        <span style="font-size:0.72rem;color:var(--text-3);display:flex;align-items:center;gap:5px;">
+          <span style="display:inline-block;width:10px;height:10px;border-radius:2px;background:var(--orange-dim);border:1px solid rgba(245,158,11,.3);"></span> Leave
+        </span>
+        <span style="font-size:0.72rem;color:var(--text-3);display:flex;align-items:center;gap:5px;">
+          <span style="display:inline-block;width:10px;height:10px;border-radius:2px;background:var(--red-dim);border:1px solid rgba(239,68,68,.2);"></span> Unmarked
+        </span>
+        <span style="font-size:0.72rem;color:var(--text-3);display:flex;align-items:center;gap:5px;">
+          <span style="display:inline-block;width:10px;height:10px;border-radius:2px;background:rgba(255,255,255,.03);"></span> Weekend
+        </span>
+      </div>
+    </div>
+
+    <!-- Month picker -->
+    <div class="card fade-up d4 mt-16">
+      <div class="form-group" style="margin-bottom:0;">
+        <label for="month-picker">View a different month</label>
+        <input type="month" id="month-picker" onchange="loadMonth(this.value)" />
+      </div>
+    </div>
+
+  </div><!-- /main-view -->
+</div><!-- /container -->
+
+<div id="toast"></div>
+
+<script>
+// ─── State ────────────────────────────────────────────────────
+const params   = new URLSearchParams(window.location.search);
+const TOKEN    = params.get('token');
+let   empData  = null;
+let   currentMonth = todayMonth();
+
+// ─── Boot ─────────────────────────────────────────────────────
+window.addEventListener('DOMContentLoaded', async () => {
+  if (!TOKEN) { showView('error'); return; }
+  await registerSW();
+  await loadDashboard();
+});
+
+async function loadDashboard(month = currentMonth) {
+  try {
+    const res  = await fetch(`/api/status?token=${TOKEN}&month=${month}`);
+    if (!res.ok) { showView('error'); return; }
+    empData = await res.json();
+    currentMonth = month;
+    renderDashboard(empData);
+    showView('main');
+  } catch {
+    showView('error');
+  }
+}
+
+async function loadMonth(val) {
+  if (val) await loadDashboard(val);
+}
+
+// ─── Render ───────────────────────────────────────────────────
+function renderDashboard(data) {
+  const today   = todayStr();
+  const isToday = currentMonth === todayMonth();
+
+  // Greeting
+  document.getElementById('greeting-name').textContent = `Hi, ${data.name} 👋`;
+  document.getElementById('greeting-date').textContent = formatDateLong(today);
+
+  // Leave balance ring
+  const rem = data.leavesRemaining;
+  const pct = (rem / 4) * 100;
+  document.getElementById('balance-ring').style.setProperty('--pct', `${pct}%`);
+  document.getElementById('ring-num').textContent        = rem;
+  document.getElementById('balance-month-label').textContent = formatMonthLabel(data.month);
+  document.getElementById('cal-month-label').textContent     = formatMonthLabel(data.month);
+
+  if (rem >= 3)      { document.getElementById('balance-label').textContent = '🟢 Plenty of leaves left'; }
+  else if (rem === 2){ document.getElementById('balance-label').textContent = '🟡 2 leaves remaining'; }
+  else if (rem === 1){ document.getElementById('balance-label').textContent = '🟠 Last leave remaining'; }
+  else               { document.getElementById('balance-label').textContent = '🔴 No leaves left'; }
+
+  document.getElementById('balance-sublabel').textContent =
+    `${data.leaveDays} used • ${rem} remaining • Resets on the 1st`;
+
+  // Stats
+  document.getElementById('stat-present').textContent   = data.presentDays;
+  document.getElementById('stat-leave').textContent     = data.leaveDays;
+  document.getElementById('stat-remaining').textContent = data.leavesRemaining;
+
+  // Month picker default
+  document.getElementById('month-picker').value = data.month;
+
+  // Today status / mark section
+  const todaySection   = document.getElementById('mark-section');
+  const todayStatusDiv = document.getElementById('today-status-display');
+  const isWeekend      = isWeekendDay(today);
+
+  if (isToday) {
+    if (data.todayStatus) {
+      // Already marked
+      todayStatusDiv.innerHTML = renderTodayStatus(data.todayStatus, today);
+      todayStatusDiv.style.display = 'block';
+      todaySection.style.display   = 'none';
+    } else if (!isWeekend) {
+      // Not yet marked, it's a weekday
+      document.getElementById('mark-date-label').textContent =
+        `Today is ${formatDateLong(today)}`;
+      todaySection.style.display   = 'block';
+      todayStatusDiv.style.display = 'none';
+    }
+  }
+
+  // Notification prompt
+  checkNotifStatus();
+
+  // Calendar
+  renderCalendar(data.month, data.records, today, isToday);
+}
+
+function renderTodayStatus(status, date) {
+  const icon  = status === 'present' ? '✅' : '🌴';
+  const label = status === 'present' ? 'Marked Present' : 'Marked On Leave';
+  const cls   = status;
+  return `
+    <div class="today-status ${cls}">
+      <div class="status-icon">${icon}</div>
+      <div class="status-text">
+        <h3>${label}</h3>
+        <p>${formatDateLong(date)} · You're all set for today!</p>
+      </div>
+    </div>`;
+}
+
+function renderCalendar(month, records, todayStr, isCurrentMonth) {
+  const grid  = document.getElementById('calendar-grid');
+  const [y, m]= month.split('-').map(Number);
+  const first = new Date(y, m - 1, 1);
+  const days  = new Date(y, m, 0).getDate();
+  const startDow = first.getDay(); // 0=Sun
+
+  const recordMap = {};
+  records.forEach(r => { recordMap[r.date] = r.status; });
+
+  let html = '';
+
+  // Empty cells before 1st
+  for (let i = 0; i < startDow; i++) {
+    html += '<div class="cal-day empty"></div>';
+  }
+
+  for (let d = 1; d <= days; d++) {
+    const dateStr = `${month}-${String(d).padStart(2, '0')}`;
+    const dow     = new Date(dateStr + 'T12:00:00').getDay();
+    const isWknd  = dow === 0 || dow === 6;
+    const isTod   = dateStr === todayStr;
+    const isFuture= isCurrentMonth && dateStr > todayStr;
+    const status  = recordMap[dateStr];
+
+    let cls = 'cal-day';
+    let label = d;
+
+    if (isWknd)          { cls += ' weekend'; label = d; }
+    else if (isFuture)   { cls += ' future'; }
+    else if (status === 'present') { cls += ' present'; label = 'P'; }
+    else if (status === 'leave')   { cls += ' leave';   label = 'L'; }
+    else if (!isFuture && !isWknd) { cls += ' unmarked'; }
+
+    if (isTod) cls += ' today';
+
+    html += `<div class="${cls}" title="${dateStr}">${label}</div>`;
+  }
+
+  grid.innerHTML = html;
+}
+
+// ─── Mark Attendance ──────────────────────────────────────────
+async function markAttendance(status) {
+  const btnP = document.getElementById('btn-present');
+  const btnL = document.getElementById('btn-leave');
+  btnP.disabled = btnL.disabled = true;
+
+  const active = status === 'present' ? btnP : btnL;
+  const origHtml = active.innerHTML;
+  active.innerHTML = '<span class="spinner"></span>';
+
+  try {
+    const res  = await fetch('/api/mark', {
+      method:  'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body:    JSON.stringify({ token: TOKEN, status }),
+    });
+    const data = await res.json();
+
+    if (data.alreadyMarked) {
+      showToast(`Already marked as ${data.status} today.`, 'orange');
+    } else if (data.overLimit) {
+      showToast('⚠️ No leaves left — recorded but flagged.', 'orange');
+    } else {
+      const emoji = status === 'present' ? '✅' : '🌴';
+      showToast(`${emoji} ${status === 'present' ? 'Present' : 'Leave'} marked! ${data.leavesRemaining}/4 leaves left.`, 'green');
+    }
+
+    await loadDashboard(currentMonth);
+  } catch (err) {
+    showToast('Network error — please try again.', 'red');
+    btnP.disabled = btnL.disabled = false;
+    active.innerHTML = origHtml;
+  }
+}
+
+// ─── Push Notifications ───────────────────────────────────────
+async function registerSW() {
+  if (!('serviceWorker' in navigator)) return;
+  try {
+    await navigator.serviceWorker.register('/sw.js');
+  } catch (e) { console.warn('SW registration failed:', e); }
+}
+
+async function checkNotifStatus() {
+  const prompt = document.getElementById('notif-prompt');
+  if (!('Notification' in window) || !('serviceWorker' in navigator)) return;
+  if (Notification.permission !== 'granted') {
+    prompt.style.display = 'block';
+  } else {
+    // Check if we have an active subscription
+    const reg = await navigator.serviceWorker.ready;
+    const sub = await reg.pushManager.getSubscription();
+    if (!sub) prompt.style.display = 'block';
+    else prompt.style.display = 'none';
+  }
+}
+
+async function enableNotifications() {
+  const btn = document.getElementById('enable-notif-btn');
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner"></span> Setting up…';
+
+  try {
+    const permission = await Notification.requestPermission();
+    if (permission !== 'granted') {
+      showToast('Notification permission denied.', 'red');
+      btn.disabled = false;
+      btn.textContent = 'Enable Morning Reminders';
+      return;
+    }
+
+    // Get VAPID public key
+    const keyRes = await fetch('/api/vapid-public-key');
+    const { publicKey } = await keyRes.json();
+
+    if (!publicKey) {
+      showToast('Server not configured for push. Run npm run setup first.', 'red');
+      btn.disabled = false;
+      return;
+    }
+
+    const reg = await navigator.serviceWorker.ready;
+    const sub = await reg.pushManager.subscribe({
+      userVisibleOnly:      true,
+      applicationServerKey: urlBase64ToUint8Array(publicKey),
+    });
+
+    await fetch('/api/subscribe', {
+      method:  'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body:    JSON.stringify({ token: TOKEN, subscription: sub }),
+    });
+
+    document.getElementById('notif-prompt').style.display = 'none';
+    showToast('🔔 Notifications enabled! You\'ll get a 9 AM reminder each weekday.', 'green');
+  } catch (err) {
+    showToast('Could not enable notifications: ' + err.message, 'red');
+    btn.disabled = false;
+    btn.textContent = 'Enable Morning Reminders';
+  }
+}
+
+// ─── Helpers ──────────────────────────────────────────────────
+function showView(view) {
+  document.getElementById('loading-view').style.display = view === 'loading' ? 'grid' : 'none';
+  document.getElementById('error-view').style.display  = view === 'error'   ? 'block' : 'none';
+  document.getElementById('main-view').style.display   = view === 'main'    ? 'block' : 'none';
+}
+
+function todayStr()   { return new Date().toISOString().split('T')[0]; }
+function todayMonth() { return todayStr().substring(0, 7); }
+function isWeekendDay(d) { const dow = new Date(d + 'T12:00:00').getDay(); return dow === 0 || dow === 6; }
+
+function formatDateLong(d) {
+  return new Date(d + 'T12:00:00').toLocaleDateString('en-IN', {
+    weekday: 'long', day: 'numeric', month: 'long', year: 'numeric'
+  });
+}
+
+function formatMonthLabel(ym) {
+  const [y, m] = ym.split('-').map(Number);
+  return new Date(y, m - 1, 1).toLocaleDateString('en-IN', { month: 'long', year: 'numeric' });
+}
+
+function urlBase64ToUint8Array(base64String) {
+  const padding = '='.repeat((4 - base64String.length % 4) % 4);
+  const base64  = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');
+  const raw     = atob(base64);
+  const arr     = new Uint8Array(raw.length);
+  for (let i = 0; i < raw.length; i++) arr[i] = raw.charCodeAt(i);
+  return arr;
+}
+
+function showToast(msg, type = '') {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.className   = `show ${type}`;
+  setTimeout(() => { t.className = ''; }, 4000);
+}
+</script>
+</body>
+</html>

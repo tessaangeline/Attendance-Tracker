@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Attendance Tracker — Register</title>
+  <meta name="description" content="Register to get your personal attendance link." />
+  <link rel="stylesheet" href="/style.css" />
+  <link rel="manifest" href="/manifest.json" />
+  <meta name="theme-color" content="#7c6cfc" />
+</head>
+<body>
+<div class="bg-glow"></div>
+
+<!-- ── Registration Page ──────────────────────────────────────── -->
+<div class="container" style="padding-top:40px; max-width:440px;">
+
+  <!-- Header -->
+  <div class="topbar fade-up">
+    <div class="logo">🏢</div>
+    <div class="topbar-text">
+      <h1>Attendance Tracker</h1>
+      <p>Frictionless daily check-in</p>
+    </div>
+  </div>
+
+  <!-- Register as Employee -->
+  <div class="card fade-up d1" id="register-card">
+    <h2 style="margin-bottom:6px;">👋 Get Your Link</h2>
+    <p style="margin-bottom:20px;">Enter your name once — we'll give you a personal link. Bookmark it and you're set.</p>
+
+    <div class="form-group">
+      <label for="emp-name">Your Full Name</label>
+      <input type="text" id="emp-name" placeholder="e.g. Priya Sharma" autocomplete="name" />
+    </div>
+
+    <button class="btn btn-accent btn-full btn-lg" id="register-btn" onclick="registerEmployee()">
+      Get My Attendance Link →
+    </button>
+  </div>
+
+  <!-- Success state (shown after registration) -->
+  <div class="card fade-up" id="success-card" style="display:none; margin-top:16px; text-align:center;">
+    <div style="font-size:2.5rem; margin-bottom:12px;">🎉</div>
+    <h2 style="margin-bottom:8px;">You're registered!</h2>
+    <p style="margin-bottom:20px;">Your personal dashboard link is below. Open it, allow notifications, and add it to your home screen.</p>
+
+    <div class="copy-box" id="link-box">
+      <code id="link-text"></code>
+      <button class="copy-btn" onclick="copyLink()" title="Copy link">📋</button>
+    </div>
+
+    <div style="margin-top:16px;">
+      <a class="btn btn-accent btn-full" id="open-link" href="#" target="_blank">Open My Dashboard →</a>
+    </div>
+
+    <div class="divider"></div>
+    <p style="font-size:0.78rem; color:var(--text-3);">Share this link with your admin or save it somewhere safe. You can always return to this page to get a new one.</p>
+  </div>
+
+  <div class="divider"></div>
+
+  <!-- Admin link -->
+  <div class="card fade-up d2" style="text-align:center;">
+    <p style="font-size:0.82rem; margin-bottom:12px;">Are you the admin?</p>
+    <a class="btn btn-ghost" href="/admin.html">Open Admin Dashboard →</a>
+  </div>
+
+</div>
+
+<div id="toast"></div>
+
+<script>
+  async function registerEmployee() {
+    const name = document.getElementById('emp-name').value.trim();
+    if (!name) { showToast('Please enter your name.', 'orange'); return; }
+
+    const btn = document.getElementById('register-btn');
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner"></span> Registering…';
+
+    try {
+      const res  = await fetch('/api/register', {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify({ name }),
+      });
+      const data = await res.json();
+
+      if (!res.ok) throw new Error(data.error || 'Registration failed');
+
+      const fullUrl = window.location.origin + data.dashboardUrl;
+      document.getElementById('link-text').textContent = fullUrl;
+      document.getElementById('open-link').href = fullUrl;
+      document.getElementById('register-card').style.display = 'none';
+      document.getElementById('success-card').style.display  = 'block';
+      showToast('✅ Registered successfully!', 'green');
+    } catch (err) {
+      showToast(err.message, 'red');
+      btn.disabled = false;
+      btn.innerHTML = 'Get My Attendance Link →';
+    }
+  }
+
+  function copyLink() {
+    const text = document.getElementById('link-text').textContent;
+    navigator.clipboard.writeText(text).then(() => showToast('Link copied!', 'green'));
+  }
+
+  function showToast(msg, type = '') {
+    const t = document.getElementById('toast');
+    t.textContent = msg;
+    t.className   = `show ${type}`;
+    setTimeout(() => { t.className = ''; }, 3000);
+  }
+
+  // Allow pressing Enter on input
+  document.getElementById('emp-name')?.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') registerEmployee();
+  });
+</script>
+</body>
+</html>
