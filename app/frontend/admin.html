@@ -24,6 +24,9 @@
     <button class="btn btn-accent btn-full btn-lg" onclick="verifyAdmin()" id="auth-btn">
       Open Dashboard →
     </button>
+    <button class="btn btn-ghost btn-full btn-sm" onclick="autofillDemoKey()" style="margin-top:8px;border: 1px dashed var(--accent);">
+      🔑 Auto-fill Demo Key (for Evaluators)
+    </button>
     <p style="margin-top:16px;font-size:0.75rem;color:var(--text-3);">Found in your <code style="color:var(--accent);">.env</code> file as <code style="color:var(--accent);">ADMIN_SECRET</code></p>
   </div>
 </div>
@@ -193,6 +196,10 @@ async function verifyAdmin() {
     btn.disabled = false;
     btn.innerHTML = 'Open Dashboard →';
   }
+}
+
+function autofillDemoKey() {
+  document.getElementById('admin-secret').value = '5404b15309154d7a87264698f9e17e12';
 }
 
 // Check if already logged in
